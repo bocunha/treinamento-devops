@@ -6,13 +6,14 @@ locals {
   date = "${formatdate("hhmmss", timestamp())}"
 }
 
-resource "aws_instance" "web1" {
+resource "aws_instance" "web" {
+  for_each = var.subnets
   #ami                     = data.aws_ami.ubuntu.id
   ami = "ami-07983613af1a3ef44"
   instance_type           = "t2.micro"
   key_name = "ortaleb-chave-nova"
   associate_public_ip_address = true
-  subnet_id               = aws_subnet.tf-ortaleb-pubnet-1a.id # vincula a subnet direto e gera o IP automático
+  subnet_id               = aws_subnet.var.subnets.id # vincula a subnet direto e gera o IP automático
   vpc_security_group_ids  = [
     "${aws_security_group.allow_ssh_terraform.id}",
   ]
@@ -22,7 +23,7 @@ resource "aws_instance" "web1" {
   }
 
   tags = {
-    Name = "ortaleb-ec2-1a-${local.date}"
+    Name = "ortaleb-ec2-${var.subnets[az]}-${var.subnets[state]}-${local.date}"
     Owner = "ortaleb"
   }
 }

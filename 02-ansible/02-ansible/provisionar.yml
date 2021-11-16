@@ -3,6 +3,13 @@
     - name: "Criando um arquivo a toa no servidor"
       shell: "echo 'escrevendo algo no servidor' >> teste.txt"
 
+    - name: "Roda: sudo apt update"
+      become: yes
+      apt:
+        upgrade: yes
+        update_cache: yes
+        cache_valid_time: 86400 #Um dia
+
     - name: "Instalando apache com sudo no servidor"
       apt:
         name: "apache2"

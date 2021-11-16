@@ -1,0 +1,46 @@
+- hosts: all
+  handlers:
+    - name: "restart apache"
+      service:
+        name: apache2
+        state: restarted
+      become: yes
+  tasks:
+    # - name: "Criando um arquivo a toa no servidor"
+    #   shell: "echo 'escrevendo algo no servidor' >> teste.txt"
+
+    - name: "Roda: sudo apt update"
+      become: yes
+      apt:
+        upgrade: yes
+        update_cache: yes
+        cache_valid_time: 86400 #Um dia
+
+
+    - name: "Instala pacotes"
+      apt:
+        name: "{{ item }}"
+        state: latest
+      become: yes # roda com sudo
+      with_items:
+        - php7.4
+        - apache2
+        - libapache2-mod-php7.4
+        - php-curl
+        - python3-pycurl
+        - unzip
+
+    - name: "Fazendo descompactação dos arquivos do WP"
+      unarchive:
+        src: "https://github.com/startbootstrap/startbootstrap-stylish-portfolio/archive/gh-pages.zip"
+        dest: "/var/tmp"
+        remote_src: yes
+      become: yes
+
+    - name: "Trocando pasta do render do apache para o wordpress"
+      copy:
+        src: "apache/000-default.conf"
+        dest: "/etc/apache2/sites-available/000-default.conf"
+      become: yes
+      notify:
+        - "restart apache"

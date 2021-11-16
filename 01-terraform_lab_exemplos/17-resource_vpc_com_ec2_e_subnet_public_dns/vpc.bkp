@@ -1,57 +1,58 @@
-#resource "aws_vpc" "tf-ortaleb-vpc" {
-#  cidr_block = "10.100.192.0/20"
-#  enable_dns_hostnames = true
-#
-#  tags = {
-#    Name = "tf-ortaleb-vpc"
-#    Owner = "ortaleb"
-#  }
-#}
-
-resource "aws_subnet" "tf-ortaleb-pubnet-1a" {
-  vpc_id            = "vpc-063c0ac3627af3dba"
-  cidr_block        = "192.168.200.0/24"
-  availability_zone = "sa-east-1a"
-  map_public_ip_on_launch = true
+resource "aws_vpc" "tf-ortaleb-vpc" {
+  cidr_block = "10.100.192.0/20"
+  enable_dns_hostnames = true
 
   tags = {
-    Name = "tf-ortaleb-pubnet-1a"
+    Name = "tf-ortaleb-vpc"
     Owner = "ortaleb"
   }
 }
 
-resource "aws_subnet" "tf-ortaleb-pubnet-1b" {
-  vpc_id            = "vpc-063c0ac3627af3dba"
-  cidr_block        = "192.168.201.0/24"
-  availability_zone = "sa-east-1b"
+variable "subnets" {
+    type = map(object({
+            az = string,
+            ip = string
+        })
+    )
+    default = {
+        "tf-ortaleb-pubnet-1a": {
+            "az" = "sa-east-1a",
+            "ip" = "10.100.192.0/24"
+        }
+            "tf-ortaleb-pubnet-1b": {
+            "az" = "sa-east-1b",
+            "ip" = "10.100.193.0/24"
+        }
+            "tf-ortaleb-pubnet-1c": {
+            "az" = "sa-east-1c",
+            "ip" = "10.100.194.0/24"
+        }
+            "tf-ortaleb-privnet-1c": {
+            "az" = "sa-east-1c",
+            "ip" = "10.100.197.0/24"
+        }
+
+    }
+}
+
+resource "aws_subnet" "tf-ortaleb-subnet" {
+  for_each = var.subnets
+  vpc_id            = aws_vpc.tf-ortaleb-vpc.id
+  cidr_block        = each.value["ip"]
+  availability_zone = each.value["az"]
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "tf-ortaleb-pubnet-1b"
+    Name = each.key
     Owner = "ortaleb"
   }
 }
 
-resource "aws_subnet" "tf-ortaleb-pubnet-1c" {
-  vpc_id            = "vpc-063c0ac3627af3dba"
-  cidr_block        = "192.168.202.0/24"
-  availability_zone = "sa-east-1c"
-  map_public_ip_on_launch = true
+resource "aws_internet_gateway" "tf-ortaleb-igw" {
+  vpc_id = aws_vpc.tf-ortaleb-vpc.id
 
   tags = {
-    Name = "tf-ortaleb-pubnet-1c"
-    Owner = "ortaleb"
-  }
-}
-
-resource "aws_subnet" "tf-ortaleb-privnet-1c" {
-  vpc_id            = "vpc-063c0ac3627af3dba"
-  cidr_block        = "192.168.203.0/24"
-  availability_zone = "sa-east-1c"
-  map_public_ip_on_launch = false
-
-  tags = {
-    Name = "tf-ortaleb-privnet-1c"
+    Name = "tf-ortaleb-igw"
     Owner = "ortaleb"
   }
 }
@@ -67,7 +68,7 @@ resource "aws_eip" "tf-ortaleb-eip" {
 
 resource "aws_nat_gateway" "tf-ortaleb-ngw" {
   allocation_id = aws_eip.tf-ortaleb-eip.id
-  subnet_id = aws_subnet.tf-ortaleb-pubnet-1c.id
+  subnet_id = var.subnets[3].id
 
   tags = {
     Name = "tf-ortaleb-ngw"
@@ -76,7 +77,7 @@ resource "aws_nat_gateway" "tf-ortaleb-ngw" {
 }
 
 resource "aws_route_table" "tf-ortaleb-irt" {
-  vpc_id = "vpc-063c0ac3627af3dba"
+  vpc_id = aws_vpc.tf-ortaleb-vpc.id
 
   route = [
       {
@@ -84,7 +85,7 @@ resource "aws_route_table" "tf-ortaleb-irt" {
         cidr_block                 = "0.0.0.0/0"
         destination_prefix_list_id = ""
         egress_only_gateway_id     = ""
-        gateway_id                 = "igw-0ab8e9b9f2d5e023a"
+        gateway_id                 = aws_internet_gateway.tf-ortaleb-igw.id
         instance_id                = ""
         ipv6_cidr_block            = ""
         local_gateway_id           = ""
@@ -103,7 +104,7 @@ resource "aws_route_table" "tf-ortaleb-irt" {
 }
 
 resource "aws_route_table" "tf-ortaleb-prt" {
-  vpc_id = "vpc-063c0ac3627af3dba"
+  vpc_id = aws_vpc.tf-ortaleb-vpc.id
 
   route = [
       {
@@ -115,7 +116,7 @@ resource "aws_route_table" "tf-ortaleb-prt" {
         instance_id                = ""
         ipv6_cidr_block            = ""
         local_gateway_id           = ""
-        nat_gateway_id             = aws_nat_gateway.tf-ortaleb-ngw.id
+        nat_gateway_id             = aws_internet_gateway.tf-ortaleb-ngw.id
         network_interface_id       = ""
         transit_gateway_id         = ""
         vpc_endpoint_id            = ""
@@ -136,16 +137,6 @@ resource "aws_route_table_association" "a" {
 }
 
 resource "aws_route_table_association" "b" {
-  subnet_id      = aws_subnet.tf-ortaleb-pubnet-1b.id
-  route_table_id = aws_route_table.tf-ortaleb-irt.id
-}
-
-resource "aws_route_table_association" "c" {
-  subnet_id      = aws_subnet.tf-ortaleb-pubnet-1c.id
-  route_table_id = aws_route_table.tf-ortaleb-irt.id
-}
-
-resource "aws_route_table_association" "d" {
-  subnet_id      = aws_subnet.tf-ortaleb-privnet-1c.id
-  route_table_id = aws_route_table.tf-ortaleb-prt.id
+  subnet_id      = aws_subnet.my_subnet.id
+  route_table_id = aws_route_table.rt_terraform.id
 }

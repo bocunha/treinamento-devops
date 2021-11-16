@@ -1,0 +1,135 @@
+- hosts: all
+  vars:
+    DATABASE: "{{ lookup('env', 'DATABASE') }}"
+    DATABASE_URL: "mysql://localhost:3306/{{ lookup('env', 'DATABASE') }}"
+    PASSWORD: "{{ lookup('env', 'PASSWORD') }}"
+    USER: "{{ lookup('env', 'USER') }}"
+
+  environment:
+    DATABASE_URL: "mysql://localhost:3306/{{ lookup('env', 'DATABASE') }}"
+    PASSWORD: "{{ lookup('env', 'PASSWORD') }}"
+    USER: "{{ lookup('env', 'USER') }}"
+
+  handlers:
+    - name: "restart nginx"
+      service:
+        name: nginx
+        state: restarted
+      become: yes
+
+  tasks:
+
+    - name: Adicionar USER no bashrc
+      ansible.builtin.lineinfile:
+        path: ~/.bashrc
+        line: export USER="{{ USER }}" 
+        state: present
+
+    - name: Adicionar PASSWORD no bashrc
+      ansible.builtin.lineinfile:
+        path: ~/.bashrc
+        line: export PASSWORD="{{ PASSWORD }}" 
+        state: present
+
+    - name: Adicionar DATABASE no bashrc
+      ansible.builtin.lineinfile:
+        path: ~/.bashrc
+        line: export DATABASE_URL="{{ DATABASE_URL }}" 
+        state: present
+
+    - name: Aplicar o bashrc
+      shell: source ~/.bashrc
+      args:
+        executable: /bin/bash
+
+    - name: "Roda: sudo apt update"
+      become: yes
+      apt:
+        upgrade: yes
+        update_cache: yes
+        cache_valid_time: 86400 #Um dia
+
+    - name: "Instala pacotes"
+      apt:
+        name: "{{ item }}"
+        state: latest
+      become: yes # roda com sudo
+      with_items:
+        - mysql-server
+        - python3-pycurl
+        - python3-mysqldb
+        - unzip
+        - maven
+        - default-jre
+        - npm
+        - nginx
+
+    - name: "clone projeto"
+      ansible.builtin.git:
+        repo: 'https://github.com/torneseumprogramador/spring-web-youtube.git'
+        dest: /home/ubuntu/spring-web-youtube
+        clone: yes
+        update: yes
+
+    - name: "Trocando o arquivo default do nginx"
+      run_once: true
+      become: yes
+      copy:
+        src: "nginx/default"
+        dest: "/etc/nginx/sites-available/default"
+      notify:
+        - "restart nginx"
+  
+    - name: "Criando senha no usuario root mysql"
+      become: yes
+      run_once: true
+      mysql_user:
+        name: "{{ USER }}"
+        host: localhost
+        password: "{{ PASSWORD }}"
+        priv: "*.*:ALL,GRANT"
+        state: present
+        update_password: on_create
+
+    - name: "Cria o banco de dados MySQL"
+      run_once: true
+      mysql_db:
+        name: "{{ DATABASE }}"
+        login_user: "{{ USER }}"
+        login_password: "{{ PASSWORD }}"
+        state: present
+
+    - name: Executando o mvn package
+      run_once: true
+      ansible.builtin.shell: "mvn package"
+      args:
+        chdir: /home/ubuntu/spring-web-youtube
+        #warn: no
+
+    - name: Executando o spring-boot
+      shell: "nohup ./mvnw spring-boot:start"
+      args:
+        chdir: /home/ubuntu/spring-web-youtube
+
+    # - name: Download treinamento.db
+    #   get_url:
+    #     url: https://raw.githubusercontent.com/torneseumprogramador/imersao-seguranca-web/main/sql/imersao_seguranca_dump.sql
+    #     dest: /var/tmp/imersao_seguranca_dump.sql
+    #     mode: '0777'
+    #     backup: yes
+
+    # - name: Restore database
+    #   mysql_db:
+    #     name: treinamento_database
+    #     login_password: root
+    #     login_user: root
+    #     state: present
+    #     target: /var/tmp/imersao_seguranca_dump.sql
+  
+    # - name: Restore database
+    #   mysql_db:
+    #     name: SpringWebYoutube
+    #     login_password: root
+    #     login_user: root
+    #     state: present
+    #     target: /var/tmp/imersao_seguranca_dump.sql

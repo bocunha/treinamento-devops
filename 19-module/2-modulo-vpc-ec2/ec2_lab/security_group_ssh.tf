@@ -1,13 +1,7 @@
-# https://registry.terraform.io/modules/terraform-aws-modules/security-group/aws/latest/submodules/ssh#input_auto_computed_egress_rules
-# https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group
-
-# ingress = [  # inbound
-# egress = [ # outbound
-
 resource "aws_security_group" "allow_ssh_terraform" {
   name        = "allow_ssh_terraform2"
   description = "Allow SSH inbound traffic"
-  vpc_id      = "vpc-063c0ac3627af3dba"
+  vpc_id      = var.vpc_id
 
   ingress = [
     {
@@ -38,10 +32,6 @@ resource "aws_security_group" "allow_ssh_terraform" {
   ]
 
   tags = {
-    Name = "ortaleb_allow_ssh"
+    Name = "allow_ssh_terraform"
   }
-}
-
-output "allow_ssh_terraform" {
-  value = aws_security_group.allow_ssh_terraform.id
 }
